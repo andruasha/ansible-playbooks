@@ -1,0 +1,42 @@
+---
+- name: Prepare servers
+  hosts: cluster
+  become: yes
+
+  roles:
+    - role: prepare
+      tags: prepare
+
+- name: Install etcd
+  hosts: cluster
+  become: yes
+  vars:
+    cluster_ips: "{{ groups['cluster'] | map('extract', hostvars, 'ansible_host') | list }}"
+
+  roles:
+    - role: etcd
+      tags: etcd
+
+- name: Install postgresql
+  hosts: cluster
+  become: yes
+  vars_files:
+    - ../group_vars/all.yml
+  vars:
+    cluster_ips: "{{ groups['cluster'] | map('extract', hostvars, 'ansible_host') | list }}"
+
+  roles:
+    - role: postgresql
+      tags: postgresql
+
+- name: Install patroni
+  hosts: cluster
+  become: yes
+  vars_files:
+    - ../group_vars/all.yml
+  vars:
+    cluster_ips: "{{ groups['cluster'] | map('extract', hostvars, 'ansible_host') | list }}"
+
+  roles:
+    - role: patroni
+      tags: patroni

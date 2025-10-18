@@ -1,0 +1,30 @@
+---
+- name: Install postgresql
+  shell: sudo apt install postgresql-{{ postgresql_version }} -y
+
+- name: Create role on master server
+  shell: sudo -u postgres psql -c "CREATE ROLE tuz WITH login password 'password';"
+  when: "'master' in group_names"
+
+- name: Create database on master server
+  shell: sudo -u postgres psql -c "CREATE DATABASE stub WITH OWNER tuz;"
+  when: "'master' in group_names"
+
+- name: Create extensions on master server
+  shell: sudo -u postgres psql -d stub -c "CREATE EXTENSION \"uuid-ossp\"; CREATE EXTENSION pg_trgm;"
+  when: "'master' in group_names"
+
+- name: Create replicator user on master server
+  shell: sudo -u postgres psql -c "CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD 'password';"
+  when: "'master' in group_names"
+
+- name: Change postgres user password on master server
+  shell: sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'password';"
+  when: "'master' in group_names"
+
+- name: Stop postgresql service
+  shell: sudo systemctl stop postgresql
+
+- name: Delete data folders on replica servers
+  shell: sudo rm -rf /var/lib/postgresql/{{ postgresql_version }}/main
+  when: "'replicas' in group_names"

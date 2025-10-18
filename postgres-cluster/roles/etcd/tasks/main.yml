@@ -1,0 +1,22 @@
+---
+- name: Install etcd
+  shell: sudo apt-get install etcd -y
+
+- name: Stop etcd service
+  shell: sudo systemctl stop etcd
+
+- name: Delete data folder
+  shell: sudo rm -rf /var/lib/etcd/*
+
+- name: Move default config file
+  shell: sudo mv /etc/default/etcd /etc/default/etcd.original
+
+- name: Generate etcd config from template
+  template:
+    src: "{{ playbook_dir }}/../templates/etcd_config_template.j2"
+    dest: /etc/default/etcd
+  vars:
+    etcd_index: "{{ ansible_play_hosts.index(inventory_hostname) + 1 }}"
+
+- name: Restart etcd service
+  shell: sudo systemctl restart etcd

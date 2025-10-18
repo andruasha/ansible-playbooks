@@ -1,0 +1,39 @@
+---
+- name: Install python
+  shell: sudo apt-get install python3-pip python3-dev libpq-dev -y
+
+- name: Install patroni
+  shell: sudo apt-get install patroni -y
+
+- name: Install python dependencies
+  shell: pip3 install psycopg2-binary wheel python-etcd
+
+- name: Generate patroni config from template
+  template:
+    src: "{{ playbook_dir }}/../templates/patroni_config_template.j2"
+    dest: /etc/patroni/config.yml
+  vars:
+    patroni_index: "{{ ansible_play_hosts.index(inventory_hostname) + 1 }}"
+
+- name: Change folder owner
+  shell: sudo chown postgres:postgres -R /etc/patroni
+
+- name: Change folder rights
+  shell: sudo chmod 700 /etc/patroni
+
+- name: Start patroni service on master server
+  shell: sudo systemctl enable --now patroni.service
+  when: "'master' in group_names"
+
+- name: Start patroni service on replica servers
+  shell: sudo systemctl enable --now patroni.service
+  when: "'replicas' in group_names"
+
+- name: Start postgresql service on master server
+  shell: sudo systemctl start postgresql.service
+  when: "'master' in group_names"
+
+- name: Start postgresql service on replica servers
+  shell: sudo systemctl start postgresql.service
+  when: "'replicas' in group_names"
+
