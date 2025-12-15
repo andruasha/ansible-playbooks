@@ -1,0 +1,10 @@
+---
+- name: Generate flannel manifest from template
+  template:
+    src: "{{ playbook_dir }}/../templates/flannel_config_template.j2"
+    dest: /home/tuz/flannel.yaml
+  when: "'master' in group_names"
+
+- name: Apply flannel manifest
+  shell: kubectl apply -f /home/tuz/flannel.yaml
+  when: "'master' in group_names"

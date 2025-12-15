@@ -1,0 +1,16 @@
+---
+- name: Install k8s
+  hosts: cluster
+  become: yes
+  roles:
+    - role: k8s
+      tags: k8s
+
+- name: Install flannel
+  hosts: cluster
+  become: yes
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: flannel
+      tags: flannel

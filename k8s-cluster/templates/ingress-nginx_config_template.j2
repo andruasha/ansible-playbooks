@@ -1,0 +1,17 @@
+controller:
+  service:
+    type: NodePort
+  hostNetwork: false
+  service:
+    externalIPs:
+      - {{ ansible_host }}
+
+  ingressClassResource:
+    name: nginx
+    enabled: true
+    default: true
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
