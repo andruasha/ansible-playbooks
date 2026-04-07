@@ -1,0 +1,208 @@
+helm repo add cilium https://helm.cilium.io/
+helm repo update
+
+
+k8sServiceHost: "CHANGE_IT"
+k8sServicePort: "6443"
+routingMode: tunnel
+ipam:
+  mode: "cluster-pool"
+cluster:
+  name: "my-cluster"
+hubble:
+  enabled: false
+kubeProxyReplacement: "true"
+enableL7Proxy: false
+nodePort:
+  enabled: true
+externalIPs:
+  enabled: true
+mtu: 1450
+bpf:
+  masquerade: true
+enableHostReachableServices: true
+hostFirewall:
+    enabled: true
+policyEnforcementMode: "default"
+
+
+helm install cilium cilium/cilium \
+  --namespace kube-system \
+  --create-namespace \
+  -f cilium.yaml
+
+---
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: host-firewall
+spec:
+  nodeSelector: {}
+
+  ingress:
+    - fromEntities:
+        - cluster
+
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+            - port: "8308"
+              protocol: TCP
+
+---
+
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+
+controller:
+  kind: DaemonSet
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30080
+      https: 30443
+  hostNetwork: false
+  dnsPolicy: ClusterFirst
+  admissionWebhooks:
+    enabled: true
+  metrics:
+    enabled: true
+  config:
+    use-forwarded-headers: "true"
+    compute-full-forwarded-for: "true"
+  updateStrategy:
+    type: RollingUpdate
+  tolerations:
+    - operator: Exists
+  nodeSelector:
+    kubernetes.io/os: linux
+
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  -f ingress.yaml
+
+---
+
+kubectl create deployment nginx --image=nginx:1.29.6
+kubectl expose deployment nginx --type=NodePort --port=80
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: nginx.k8s.ru
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx
+            port:
+              number: 80
+
+---
+
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+error_log /var/log/nginx/error.log;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 768;
+}
+
+http {
+
+    server {
+        listen 80;
+        server_name nginx.k8s.ru;
+
+        location / {
+            proxy_pass http://127.0.0.1:30080;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+    }
+
+    server {
+        listen 443;
+        server_name nginx.k8s.ru;
+
+        location / {
+            proxy_pass http://127.0.0.1:30443;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+    }
+
+    server {
+        listen 8080;
+        server_name nginx.k8s.ru;
+
+        location / {
+            return 200 '8080';
+        }
+    }
+}
+
+---
+
+при включенном hiddify отъебывает HOSTS!!!
+
+---
+
+istioctl install \
+  --set profile=minimal \
+  --set values.gateways.istio-ingressgateway.enabled=false \
+  --set values.global.proxy.autoInject=disabled \
+  --set values.global.proxy.enableCoreDump=false \
+  --set values.global.proxy.privileged=true \
+  --set meshConfig.accessLogFile=/dev/stdout \
+  -y
+
+---
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+  labels:
+    istio.io/deactivated: never-match
+    istio.io/rev: default
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+      annotations:
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.29.6
