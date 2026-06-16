@@ -1,0 +1,165 @@
+##############
+#
+# Это неработоспособная конфигурация, взятая с https://platformv.sbertech.ru/docs/public/SSM/4.3/IGEG/4.3/documents/installation-guide/index.html
+#
+##############
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingressgateway-app
+  labels:
+    app: ingressgateway-app
+    app.kubernetes.io/component: gateways
+    app.kubernetes.io/name: gateways
+    app.kubernetes.io/part-of: istio
+    istio: ingressgateway-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingressgateway-app
+      istio: ingressgateway-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 50%
+  template:
+    metadata:
+      labels:
+        app: ingressgateway-app
+        istio: ingressgateway-app
+      annotations:
+        sidecar.istio.io/inject: 'false'
+    spec:
+      serviceAccountName: "default"
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 30
+      securityContext: {}
+      containers:
+        - name: istio-proxy
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          image: docker.io/istio/proxyv2:1.22.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 15021
+              scheme: HTTP
+            initialDelaySeconds: 1
+            timeoutSeconds: 1
+            periodSeconds: 2
+            successThreshold: 1
+            failureThreshold: 30
+          terminationMessagePath: /dev/termination-log
+          args:
+            - proxy
+            - router
+            - '--domain'
+            - $(POD_NAMESPACE).svc.cluster.local
+            - '--proxyLogLevel=warning'
+            - '--proxyComponentLogLevel=misc:error'
+            - '--log_output_level=default:info'
+          env:
+            - name: PROXY_CONFIG
+              value: |
+                {"discoveryAddress":"<имя_сервиса_istiod_контрольной_панели>.<имя_проекта_контрольной_панели>.svc:15012"}
+            - name: JWT_POLICY
+              value: third-party-jwt
+            - name: PILOT_CERT_PROVIDER
+              value: istiod
+            - name: CA_ADDR
+              value: 'istiod.istio-system.svc:15012'
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: INSTANCE_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.podIP
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.hostIP
+            - name: SERVICE_ACCOUNT
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.serviceAccountName
+            - name: ISTIO_META_WORKLOAD_NAME
+              value: istio-ingressgateway
+            - name: ISTIO_META_OWNER
+              value: >-
+                kubernetes://apis/apps/v1/namespaces/app/deployments/ingressgateway-app
+            - name: ISTIO_META_MESH_ID
+              value: cluster.local
+            - name: TRUST_DOMAIN
+              value: cluster.local
+            - name: ISTIO_META_UNPRIVILEGED_POD
+              value: 'true'
+            - name: ISTIO_META_CLUSTER_ID
+              value: Kubernetes
+          securityContext: {}
+          volumeMounts:
+            - name: istio-envoy
+              mountPath: /etc/istio/proxy
+            - name: istiod-ca-cert
+              mountPath: /var/run/secrets/istio
+            - name: istio-token
+              readOnly: true
+              mountPath: /var/run/secrets/tokens
+            - name: istio-data
+              mountPath: /var/lib/istio/data
+            - name: socket
+              mountPath: /var/run/secrets/workload-spiffe-uds
+            - name: podinfo
+              mountPath: /etc/istio/pod
+            - name: ingressgateway-certs
+              readOnly: true
+              mountPath: /etc/istio/ingressgateway-certs
+            - name: ingressgateway-ca-certs
+              readOnly: true
+              mountPath: /etc/istio/ingressgateway-ca-certs
+
+            - name: ingressgateway-certs
+              mountPath: /vlt/istio/secrets-crt
+              readOnly: true
+      volumes:
+        - name: istio-certs
+          emptyDir: {}
+        - name: istio-data
+          emptyDir: {}
+        - name: istio-envoy
+          emptyDir: {}
+        - name: ingressgateway-certs
+          secret:
+            secretName: ingressgateway-tls
+        - name: istio-root-ca
+          configMap:
+            name: istio-ca-root-cert

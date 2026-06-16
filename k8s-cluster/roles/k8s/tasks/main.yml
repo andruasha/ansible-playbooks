@@ -100,7 +100,7 @@
   shell: sudo systemctl daemon-reload
 
 - name: Initialize k8s cluster
-  shell: sudo kubeadm init --apiserver-advertise-address={{ ansible_host }} --pod-network-cidr=10.10.0.0/16
+  shell: sudo kubeadm init --apiserver-advertise-address={{ ansible_host }} --pod-network-cidr=10.0.0.0/16
   when: "'master' in group_names"
 
 - name: Get join command
