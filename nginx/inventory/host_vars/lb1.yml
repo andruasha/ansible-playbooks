@@ -1,0 +1,37 @@
+nginx_configs:
+  - file_name: nginx.conf
+    path: /
+    content: |
+      user www-data;
+      worker_processes auto;
+      pid /run/nginx.pid;
+      error_log /var/log/nginx/error.log;
+      include /etc/nginx/modules-enabled/*.conf;
+      
+      events {
+        worker_connections 768;
+      }
+      
+      http {
+        server {
+          listen 80;
+      
+          location / {
+            return 200 '80';
+          }
+        }
+
+        include conf.d/*;
+
+      }
+
+  - file_name: server_443.conf
+    path: conf.d/
+    content: |
+      server {
+        listen 443;
+
+        location / {
+          return 200 '443';
+        }
+      }

@@ -1,0 +1,7 @@
+- name: Получаем статус службы nginx.service
+  command: "sudo systemctl status nginx.service"
+  register: nginx_status
+
+- name: Выводим статус службы nginx.service
+  debug:
+    msg: nginx_status

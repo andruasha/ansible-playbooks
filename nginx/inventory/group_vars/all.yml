@@ -1,0 +1,2 @@
+staging_base_dir: /home/nginx-deploy/nginx-staging
+production_base_dir: /etc/nginx

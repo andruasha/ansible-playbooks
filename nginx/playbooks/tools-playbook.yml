@@ -1,0 +1,29 @@
+- hosts: all
+  max_fail_percentage: 0
+  gather_facts: no
+  serial: 1
+
+  tasks:
+    - import_role:
+        name: status
+      tags: status
+
+    - import_role:
+        name: stop
+      tags: stop
+
+    - import_role:
+        name: deploy
+      tags: deploy
+
+    - import_role:
+        name: start
+      tags: start
+
+    - import_role:
+        name: reload
+      tags: reload
+
+    - import_role:
+        name: restart
+      tags: restart

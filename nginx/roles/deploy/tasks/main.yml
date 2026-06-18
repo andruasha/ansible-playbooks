@@ -1,0 +1,54 @@
+- name: Create backup of current configuration
+  command: sudo nginx-backup-create
+  register: configuration_backup_file_name
+
+- name: Clear staging directory
+  command: "rm -rf {{ staging_base_dir }}/"
+
+- name: Create missing directories (staging directory)
+  ansible.builtin.file:
+    path: "{{ staging_base_dir }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ nginx_configs | map(attribute='path') | unique }}"
+
+- name: Generate configuration files (staging directory)
+  ansible.builtin.copy:
+    dest: "{{ staging_base_dir }}/{{ item.path }}/{{ item.file_name }}"
+    content: "{{ item.content }}"
+    mode: "0644"
+  loop: "{{ nginx_configs }}"
+
+- name: Test configuration (staging directory)
+  block:
+    - name: Execute nginx -t
+      command: "sudo nginx -t -c {{ staging_base_dir }}/nginx.conf"
+      register: configuration_test_result
+  rescue:
+    - name: Fail the build
+      fail:
+        msg: 'Nginx configuration test failed'
+
+- name: Synchronise staging and production directories
+  command: sudo nginx-configuration-rsync
+
+- name: Test configuration (production directory)
+  block:
+    - name: Execute nginx -t
+      command: "sudo nginx -t -c {{ production_base_dir }}/nginx.conf"
+      register: configuration_test_result
+  rescue:
+    - name: Restore backup of previous configuration
+      command: sudo nginx-backup-restore
+
+    - name: Fail the build
+      fail:
+        msg: 'Nginx configuration test failed'
+
+- name: Reload nginx service
+  include_role:
+    name: reload
+
+- name: Get nginx service status
+  include_role:
+    name: status
