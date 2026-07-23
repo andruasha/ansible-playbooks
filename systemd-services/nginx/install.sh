@@ -1,5 +1,5 @@
 sudo apt update
-sudo apt install nginx-full
+sudo apt install nginx-full -y
 
 
 sudo groupadd nginx-deploy

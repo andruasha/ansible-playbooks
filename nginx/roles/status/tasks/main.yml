@@ -4,4 +4,4 @@
 
 - name: Выводим статус службы nginx.service
   debug:
-    msg: nginx_status
+    msg: "{{ nginx_status }}"
