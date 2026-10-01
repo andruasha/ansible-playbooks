@@ -24,6 +24,7 @@ metadata:
   labels:
     istio-injection: enabled
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/application-namespace.yaml
 
 sudo tee $BASE_DIRECTORY/manifests/application-configmap.yaml > /dev/null <<EOF
 kind: ConfigMap
@@ -61,6 +62,7 @@ data:
         }
     }
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/application-configmap.yaml
 
 sudo tee $BASE_DIRECTORY/manifests/application-deployment.yaml > /dev/null <<EOF
 kind: Deployment
@@ -169,6 +171,7 @@ spec:
                         - $APPLICATION_NAME
                 topologyKey: kubernetes.io/hostname
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/application-deployment.yaml
 
 sudo tee $BASE_DIRECTORY/manifests/application-service.yaml > /dev/null <<EOF
 kind: Service
@@ -189,6 +192,7 @@ spec:
     app.kubernetes.io/instance: $APPLICATION_NAME
     app.kubernetes.io/name: $APPLICATION_NAME
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/application-service.yaml
 
 sudo tee $BASE_DIRECTORY/manifests/application-ingress.yaml > /dev/null <<EOF
 kind: Ingress
@@ -217,6 +221,22 @@ spec:
                 port:
                   number: 8443
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/application-ingress.yaml
+
+sudo tee $BASE_DIRECTORY/manifests/istio-certificates.yaml > /dev/null <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ingressgateway-$NAMESPACE_NAME
+  namespace: $NAMESPACE_NAME
+type: kubernetes.io/tls
+data:
+  tls.crt: |
+    # base64
+  tls.key: |
+    # base64
+EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/istio-certificates.yaml
 
 sudo tee $BASE_DIRECTORY/manifests/istio-ingressgateway.yaml > /dev/null <<EOF
 kind: Deployment
@@ -262,18 +282,15 @@ spec:
     spec:
 # TODO !!!
       volumes:
-        - name: app-tls
+        - name: tls-certificate
           projected:
             sources:
               - secret:
-                  name: app-tls-server-cert
+                  name: ingressgateway-$NAMESPACE_NAME
                   items:
-                    - key: server.crt
+                    - key: tls.crt
                       path: server.crt
-              - secret:
-                  name: app-tls-server-key
-                  items:
-                    - key: server.key
+                    - key: tls.key
                       path: server.key
 # TODO !!!
       containers:
@@ -292,7 +309,7 @@ spec:
               memory: 100Mi
 # TODO !!!
           volumeMounts:
-            - name: app-tls
+            - name: tls-certificate
               mountPath: /vlt/istio/secrets-crt
               readOnly: true
 # TODO !!!
@@ -320,6 +337,7 @@ spec:
   revisionHistoryLimit: 10
   progressDeadlineSeconds: 600
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/istio-ingressgateway.yaml
 
 sudo tee $BASE_DIRECTORY/manifests/istio-service.yaml > /dev/null <<EOF
 apiVersion: v1
@@ -340,6 +358,7 @@ spec:
     app: ingressgateway-$NAMESPACE_NAME
     istio: ingressgateway-$NAMESPACE_NAME
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/istio-service.yaml
 
 sudo tee $BASE_DIRECTORY/manifests/istio-gateway.yaml > /dev/null <<EOF
 apiVersion: networking.istio.io/v1alpha3
@@ -362,6 +381,7 @@ spec:
         serverCertificate: /vlt/istio/secrets-crt/server.crt
         privateKey: /vlt/istio/secrets-crt/server.key
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/istio-gateway.yaml
 
 sudo tee $BASE_DIRECTORY/manifests/istio-virtualservice.yaml > /dev/null <<EOF
 apiVersion: networking.istio.io/v1alpha3
@@ -394,6 +414,7 @@ spec:
             port:
               number: 8080
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/istio-virtualservice.yaml
 
 sudo tee $BASE_DIRECTORY/manifests/istio-destinationrule.yaml > /dev/null <<EOF
 apiVersion: networking.istio.io/v1alpha3
@@ -414,3 +435,4 @@ spec:
         tls:
           mode: SIMPLE
 EOF
+kubectl apply -f $BASE_DIRECTORY/manifests/istio-destinationrule.yaml
