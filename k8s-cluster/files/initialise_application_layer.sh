@@ -144,6 +144,7 @@ controller:
     - operator: Exists
   nodeSelector:
     kubernetes.io/os: linux
+  enableCustomResources: true
 EOF
 #=====
 
